@@ -55,3 +55,4 @@ table.h{width:100%;border-collapse:collapse;font-size:14px}table.h td,table.h th
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 .per-1 .kv,.per-2 .kv{padding-right:1.5in}.per-4 .kv{padding-right:1in}
 .flag .qr{position:static;margin-top:auto;align-self:flex-end;padding-top:4px}.per-1 .kv,.per-2 .kv,.per-4 .kv{padding-right:0}
+.sheet{height:10.9in;overflow:hidden}.per-2{grid-template-rows:minmax(0,1fr) minmax(0,1fr)}.per-4{grid-template-rows:minmax(0,1fr) minmax(0,1fr)}.per-1{grid-template-rows:minmax(0,1fr)}.flag{min-height:0}

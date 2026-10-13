@@ -1,6 +1,6 @@
 import { chromium } from '/workspace/tools/node_modules/playwright/index.mjs';
 import fs from 'fs';
-const BASE = process.env.BASE || 'http://localhost:8799/'; const PW = process.env.PW /* team password via env */;
+const BASE = process.env.BASE || 'http://localhost:8799/'; const PW = process.env.PW;
 const out = []; const ok = (n, c, extra = '') => { out.push(`${c ? 'PASS' : 'FAIL'} ${n} ${extra}`); console.log(out.at(-1)); };
 const b = await chromium.launch();
 const ctx = await b.newContext({ viewport: { width: 1366, height: 900 }, acceptDownloads: true });
@@ -107,15 +107,15 @@ ok('Mark recycled', await status(B) === 'RECYCLED');
 const hist = await pg.innerText('table.h:last-of-type'); ok('history logged (append-only)', /APPROVAL_INVALIDATED/.test(await pg.content()) && /MARKED_RECYCLED/.test(await pg.content()));
 await pg.screenshot({ path: `${S}/record_detail.png`, fullPage: true });
 // a few more records for dashboard variety
-async function quick(job, cust, desc, loc) { await go('#/new'); await pg.waitForSelector('#fm'); await pg.fill('#fm [name=job_number]', job); await pg.fill('#fm [name=customer]', cust); await pg.click('[data-pt="Flat sheets"]'); await pg.fill('#fm [name=description]', desc); await pg.selectOption('#fm [name=location]', loc); await pg.check('#conf'); await pg.click('#save'); await pg.waitForSelector('#after a'); }
+async function quick(job, cust, desc, loc) { await go('#/new'); await pg.waitForSelector('#fm'); await pg.fill('#fm [name=job_number]', job); await pg.fill('#fm [name=customer]', cust); await pg.click('[data-pt="Flat sheets"]'); await pg.fill('#fm [name=description]', desc); await pg.selectOption('#fm [name=location]', loc); await pg.check('#conf'); await pg.click('#save'); await pg.waitForSelector('#after a'); ok('saved job number exact ' + job, (await pg.innerText('#saveres')).includes('job ' + job + ')')); }
 await quick('0011111', 'Acme Bank', 'Flat sheet 8.5x11', 'Overs Rack');
 await go('#/new'); await pg.waitForSelector('#fm'); await pg.fill('#fm [name=job_number]', '0011111'); await pg.press('#fm [name=job_number]', 'Tab'); await pg.waitForTimeout(1500);
 ok('duplicate warning offers add containers', /already in overs/.test(await pg.innerText('#dup')) && !!(await pg.$('#dup a[href*="add=containers"]')));
-await quick('0098799', 'Lakeview Health', 'Tri-fold brochure', 'Overs Area B');
+await quick('0098765', 'Lakeview Health', 'Tri-fold brochure', 'Overs Area B');
 // dashboard + search
 await go('#/'); await pg.waitForSelector('.pcard'); await pg.waitForTimeout(1500);
 await pg.screenshot({ path: `${S}/dashboard_1366.png`, fullPage: true });
-await pg.fill('#q', 'Lakeview'); ok('search by customer', (await pg.$$('.pcard')).length === 1); await pg.fill('#q', '');
+await pg.fill('#q', 'Lakeview'); ok('search by customer', (await pg.$$('.pcard')).length >= 1 && (await pg.$$eval('.pcard', e => e.every(x => /Lakeview/.test(x.innerText))))); await pg.fill('#q', '');
 // flags batch
 await pg.$$eval('[data-sel]', e => e.forEach(c => c.checked = true)); await pg.click('#pf'); await pg.waitForSelector('.sheet');
 await pg.screenshot({ path: `${S}/flags_2up_screen.png`, fullPage: true });
