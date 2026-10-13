@@ -91,7 +91,9 @@ export function computeStatus({ product = {}, review = null, finalCheck = null, 
     shipAt = chicagoToDate(r.last_ship_date, '23:59'); assumption = DATE_ONLY_POLICIES.end_of_day;
   }
   const nowMs = +new Date(now);
-  if (+shipAt > nowMs + 5 * 60000) return out('NEEDS_REVIEW', 'Conflict: last actual ship date is in the future');
+  const todayCT = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(nowMs));
+  const inFuture = assumption ? r.last_ship_date > todayCT : +shipAt > nowMs + 5 * 60000;
+  if (inFuture) return out('NEEDS_REVIEW', 'Conflict: last actual ship date is in the future');
   const eligibleAt = new Date(+shipAt + 24 * 3600 * 1000);
   if (nowMs < +eligibleAt) return out('HOLD_24H', 'Waiting 24 hours after last actual shipment', { eligibleAt, assumption });
   const fp = approvalFingerprint(product, review);

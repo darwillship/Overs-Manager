@@ -57,3 +57,8 @@ test('Chicago DST conversion', () => {
   assert.equal(chicagoToDate('2026-12-01', '12:00').toISOString(), '2026-12-01T18:00:00.000Z');
 });
 test('completion is terminal', () => assert.equal(s({ review: base, completion: { type: 'RECYCLED' } }), 'RECYCLED'));
+test('date-only shipped TODAY with end_of_day policy -> waiting 24h (not a conflict)', () => {
+  const r = computeStatus({ product: P, review: { ...base, last_ship_date: '2026-10-13', last_ship_time: '' }, settings: { date_only_policy: 'end_of_day' }, now: new Date('2026-10-13T20:00:00Z') });
+  assert.equal(r.status, 'HOLD_24H'); assert.equal(r.eligibleAt.toISOString(), '2026-10-15T04:59:00.000Z');
+  assert.equal(computeStatus({ product: P, review: { ...base, last_ship_date: '2026-10-14', last_ship_time: '' }, settings: { date_only_policy: 'end_of_day' }, now: new Date('2026-10-13T20:00:00Z') }).status, 'NEEDS_REVIEW');
+});
