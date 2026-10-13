@@ -300,7 +300,7 @@ async function viewReceive(params) {
    <label class="f"><span>Customer</span><input name="customer"></label>
    <div id="pf">${productFields()}</div>
    <label class="f"><span>Containers</span></label>${containerPicker('cp')}
-   <label class="f"><span>Location</span><select name="location"><option value="">—</option>${locations.map(l => `<option>${esc(l.name)}</option>`).join('')}</select></label>
+   ${locations.length === 1 ? `<input type="hidden" name="location" value="${esc(locations[0].name)}"><p class="small">📍 Location: <b>${esc(locations[0].name)}</b></p>` : `<label class="f"><span>Location</span><select name="location"><option value="">—</option>${locations.map((l, i) => `<option ${i === 0 ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>`}
    <label class="f"><span>Date received</span><input name="received_date" type="date" value="${todayCT()}"></label>
    <label class="f"><span>Notes</span><textarea name="notes" rows="2"></textarea></label>
    <label class="row small"><input type="checkbox" id="conf" style="width:24px;height:24px"> I checked the job number and item numbers against the photo/label.</label>
@@ -435,7 +435,7 @@ function productPanel(rec, p, url) {
   const yn = (n, v) => seg(n, [['Y', 'Yes'], ['N', 'No']], v); const ynu = (n, v) => seg(n, [['Y', 'Yes'], ['N', 'No'], ['U', 'Unknown']], v);
   return `<div class="card" id="p_${p.id}" data-prod="${p.id}" style="border-left:10px solid var(--${{ NEEDS_REVIEW: 'nrb', HOLD_OPEN: 'hob', HOLD_24H: 'hwb', ELIGIBLE_FINAL: 'hwb', RETURN_INV: 'rib', READY_RECYCLE: 'rrb', RETURNED: 'rib', RECYCLED: 'rrb' }[p.status]})">
   <div class="bigstatus b-${p.status}" data-status="${p.status}">${STATUS_LABEL[p.status]}${['NEEDS_REVIEW', 'HOLD_OPEN', 'HOLD_24H', 'ELIGIBLE_FINAL'].includes(p.status) ? ' · DO NOT RECYCLE' : ''}</div>
-  <div class="small">${esc(p.status_reason || '')}${p.eligible_at ? ` · Eligibility time: ${esc(fmtDT(p.eligible_at))}` : ''}</div>
+  ${r.last_ship_date && !r.last_ship_time ? `<div class="warn small">Last ship date has no time — ${settings.date_only_policy === 'end_of_day' ? 'assumed shipped 11:59 PM CT that day; 24h wait starts then.' : 'manual review required.'}</div>` : ''}<div class="small">${esc(p.status_reason || '')}${p.eligible_at ? ` · Eligibility time: ${esc(fmtDT(p.eligible_at))}` : ''}</div>
   ${p.completion ? `<div class="upl ok">${p.completion.type === 'RETURNED' ? 'Returned to inventory' : 'Recycled'} by ${esc(p.completion.by)} on ${esc(fmtDT(p.completion.at))}${p.completion.quantity != null ? ` · quantity ${p.completion.quantity}` : ' · quantity unknown'}</div>` : ''}
   <details ${done ? '' : 'open'}><summary><b>Product: ${esc(p.product_type || '')} ${esc(p.description || '')}</b> ${p.verified_item_number ? `· Verified item ${esc(p.verified_item_number)}` : p.ocr_item_number ? `· Label item ${esc(p.ocr_item_number)} (UNVERIFIED)` : ''}</summary>
    <div data-pf>${productFields(p)}</div><button class="btn" data-act="saveprod" ${done ? 'disabled' : ''}>Save product details</button>
@@ -520,7 +520,7 @@ async function viewFlags(params) {
      <b>Checked</b><span>${r.checked_by ? `${esc(r.checked_by)} · ${esc(fmtDT(r.checked_at))}` : 'Not yet checked'}</span>
      ${p.eligible_at && ['HOLD_24H', 'ELIGIBLE_FINAL', 'READY_RECYCLE'].includes(s) ? `<b>Eligible</b><span>${esc(fmtDT(p.eligible_at))}${s === 'HOLD_24H' ? ' — then FINAL CHECK' : ''}</span>` : ''}
      ${s === 'READY_RECYCLE' && p.final_check ? `<b>Final check</b><span>${esc(p.final_check.by)} · ${esc(fmtDT(p.final_check.at))}</span>` : ''}
-     <b>Reason</b><span>${esc(p.status_reason || '')}</span><b>Received</b><span>${esc(fmtD(rec.received_date))}</span></div>
+     <b>Reason</b><span>${esc(p.status_reason || '')}</span>${r.last_ship_date && !r.last_ship_time ? `<b>Ship time</b><span>Date-only (${esc(fmtD(r.last_ship_date))}) — assumed 11:59 PM CT</span>` : ''}<b>Received</b><span>${esc(fmtD(rec.received_date))}</span></div>
      <div class="qr">${qrSvg(`${APP_URL}#/r/${rec.id}?p=${p.id}`, per === 4 ? 2 : 3)}Scan: record & photos</div></div>`; };
   const pages = []; for (let i = 0; i < prods.length; i += per) pages.push(prods.slice(i, i + per));
   app.innerHTML = `<div class="noprint card row"><b>${prods.length} flag(s)</b> Layout: ${seg('per', [[1, '1 per page'], [2, '2 per page'], [4, '4 per page']], per)}<button class="btn primary big" onclick="print()">🖨 Print</button><span class="small muted">Letter size. Colors + patterns + text, readable in black & white.</span></div>

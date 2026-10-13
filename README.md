@@ -30,7 +30,7 @@ Tracks production leftovers (overs) from receiving → manual PrintStream review
 3. All closed, no future dates, matching item verified → **RETURN TO INVENTORY**.
 4. All closed, no future dates, both checked, item confirmed not found: < 24 h since last actual shipment → **HOLD — WAITING 24 HOURS**; ≥ 24 h → **ELIGIBLE — FINAL CHECK REQUIRED**.
 5. Missing last shipment date blocks eligibility. Times are America/Chicago.
-- Date-only shipments: default = **NEEDS REVIEW** (no time is invented). Settings can switch to "assume 11:59 PM" — the assumption is shown on the record.
+- Date-only shipments: per Jonathan (Oct 13, 2026) treated as shipped **11:59 PM CT** that day; the 24 h wait starts then. The assumption is shown on the record and flag. (Settings can switch back to manual review.)
 - The countdown never sets Ready. **READY TO RECYCLE** only after a staff final check (all closed, no future dates, not found). Changing shipping/item findings, product identity or last ship date recalculates and cancels the approval.
 - Return to Inventory / Ready to Recycle are instructions; use **Mark Returned** / **Mark Recycled** to record who, when and quantity. Reviews and status changes are append-only history.
 
