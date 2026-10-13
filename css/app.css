@@ -54,3 +54,4 @@ table.h{width:100%;border-collapse:collapse;font-size:14px}table.h td,table.h th
 @media print{body{background:#fff}.noprint{display:none!important}main{padding:0;max-width:none}.sheet{box-shadow:none;margin:0}@page{size:letter;margin:0}
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 .per-1 .kv,.per-2 .kv{padding-right:1.5in}.per-4 .kv{padding-right:1in}
+.flag .qr{position:static;margin-top:auto;align-self:flex-end;padding-top:4px}.per-1 .kv,.per-2 .kv,.per-4 .kv{padding-right:0}
