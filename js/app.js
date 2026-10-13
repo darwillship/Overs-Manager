@@ -1,6 +1,6 @@
-import { SUPABASE_URL, SUPABASE_KEY, APP_URL, DEFAULT_LOGIN_EMAIL, BUCKET } from './config.js';
-import { computeStatus, approvalFingerprint, STATUS_LABEL, ACTIVE_STATUSES, DATE_ONLY_POLICIES } from './rules.js';
-import { parseLabel } from './ocrparse.js';
+import { SUPABASE_URL, SUPABASE_KEY, APP_URL, DEFAULT_LOGIN_EMAIL, BUCKET } from './config.js?v=8';
+import { computeStatus, approvalFingerprint, STATUS_LABEL, ACTIVE_STATUSES, DATE_ONLY_POLICIES } from './rules.js?v=8';
+import { parseLabel } from './ocrparse.js?v=8';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true } });
 window.__sb = sb;
@@ -201,7 +201,20 @@ async function viewHistory(params) {
 }
 
 // ---------- images ----------
-async function loadBitmap(file) { try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { return await createImageBitmap(file); } }
+const isHeic = f => /hei[cf]/i.test(f.type || '') || /\.hei[cf]$/i.test(f.name || '');
+function loadScript(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('Could not load ' + src)); document.head.append(s); }); }
+async function decodeViaImg(blob) { const url = URL.createObjectURL(blob); try { const im = new Image(); im.decoding = 'async'; im.src = url; await im.decode(); return await createImageBitmap(im); } finally { URL.revokeObjectURL(url); } }
+/** Decode any photo (JPEG/PNG/WebP/HEIC), applying EXIF rotation. */
+async function loadBitmap(file) {
+  const tries = [() => createImageBitmap(file, { imageOrientation: 'from-image' }), () => decodeViaImg(file)];
+  for (const t of tries) { try { return await t(); } catch (e) { /* next */ } }
+  if (isHeic(file)) {
+    if (!window.heic2any) await loadScript('https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js');
+    const jpg = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+    return await decodeViaImg(Array.isArray(jpg) ? jpg[0] : jpg);
+  }
+  throw new Error('This photo format could not be opened (' + (file.type || file.name || 'unknown') + '). Try again or use JPEG.');
+}
 function toCanvas(bmp, maxSide, crop) {
   const sx = crop ? crop.x : 0, sy = crop ? crop.y : 0, sw = crop ? crop.w : bmp.width, sh = crop ? crop.h : bmp.height;
   const k = Math.min(1, maxSide / Math.max(sw, sh)); const c = document.createElement('canvas');
@@ -236,12 +249,18 @@ function uploadQueue(el, items, rec_id, product_id, onDone) {
 let ocrWorker;
 async function runOCR(canvas, onProgress) {
   if (!window.Tesseract) throw new Error('OCR library did not load (offline?)');
-  if (!ocrWorker) ocrWorker = await Tesseract.createWorker('eng', 1, { logger: m => m.status === 'recognizing text' && onProgress && onProgress(m.progress) });
-  // upscale + grayscale for better accuracy
-  const k = Math.max(1, Math.min(3, 1600 / Math.max(canvas.width, canvas.height)));
+  window.__ocrProgress = onProgress;
+  if (!ocrWorker) {
+    onProgress && onProgress(0, 'Loading label reader (first time only, ~10 MB)…');
+    const make = Tesseract.createWorker('eng', 1, {
+      logger: m => { const f = window.__ocrProgress; if (!f) return; if (m.status === 'recognizing text') f(m.progress, 'Reading label…'); else f(m.progress || 0, 'Loading label reader: ' + m.status + '…'); } });
+    ocrWorker = await Promise.race([make, new Promise((_, no) => setTimeout(() => no(new Error('Label reader took too long to download (slow or no internet)')), 120000))]).catch(e => { ocrWorker = null; throw e; });
+  }
+  // scale to ~2000px long side (phone memory) + grayscale for accuracy
+  const k = Math.min(3, 2000 / Math.max(canvas.width, canvas.height));
   const c = document.createElement('canvas'); c.width = canvas.width * k; c.height = canvas.height * k;
   const g = c.getContext('2d'); g.filter = 'grayscale(1) contrast(1.4)'; g.drawImage(canvas, 0, 0, c.width, c.height);
-  const { data } = await ocrWorker.recognize(c);
+  const { data } = await Promise.race([ocrWorker.recognize(c), new Promise((_, no) => setTimeout(() => no(new Error('Reading took too long')), 90000))]);
   const lines = (data.lines || []).map(l => ({ text: l.text, confidence: l.confidence }));
   return { lines, text: data.text };
 }
@@ -287,14 +306,14 @@ async function viewReceive(params) {
   let cur = -1, crop = null;
   app.innerHTML = `<h2>Receive overs</h2><div class="capture">
   <div><div class="card"><div class="row">
-    <label class="btn primary big grow">📷 Take photo<input id="cam" type="file" accept="image/*" capture="environment" hidden></label>
-    <label class="btn big grow">🖼 Upload photo<input id="upl" type="file" accept="image/*" multiple hidden></label></div>
+    <label class="btn primary big grow">📷 Take photo<input id="cam" type="file" accept="image/*" capture="environment" class="vh"></label>
+    <label class="btn big grow">🖼 Upload photo<input id="upl" type="file" accept="image/*,.heic,.heif" multiple class="vh"></label></div>
     <p class="small muted">Photo of the product, the label/overs tag, or both. Optional — manual entry always works. OCR runs on this device; photos are not sent anywhere for reading.</p>
     <div class="imgwrap" id="iw" style="display:none"><canvas id="cv"></canvas></div>
     <div class="thumbs" id="pt" style="margin-top:8px"></div>
-    <div id="ocrbar" style="display:none;margin-top:8px"><p class="small">Several labels in the photo? <b>Drag a box around ONE label</b>, then read it.</p>
+    <div id="ocrbar" style="display:none;margin-top:8px"><p class="small">The label is read automatically. Several labels in the photo? <b>Drag a box around ONE label</b>, then tap Read label again.</p>
      <div class="row"><select id="kind" style="max-width:200px"><option value="label">Label / tag</option><option value="product">Product</option><option value="both">Both</option></select>
-     <button class="btn primary" id="ocr">🔎 Read label</button><button class="btn sm" id="clr">Clear selection</button></div><div id="ocrmsg"></div></div></div></div>
+     <button class="btn primary" id="ocr">🔎 Read label again</button><button class="btn sm" id="clr">Clear selection</button></div><div id="ocrmsg"></div></div></div></div>
   <div><form class="card" id="fm" onsubmit="return false">
    <div id="dup"></div>
    <label class="f"><span>Job number *</span><input name="job_number" required inputmode="text" autocomplete="off"></label>
@@ -313,8 +332,17 @@ async function viewReceive(params) {
     $('#pt').innerHTML = photos.map((p, i) => `<div class="t"><img src="${p.url}" class="${i === cur ? 'main' : ''}" data-i="${i}"><br><small>${i === 0 ? 'Main' : ''}</small> <button class="btn sm" data-del="${i}">✕</button></div>`).join('');
     $('#pt').querySelectorAll('[data-i]').forEach(im => im.onclick = () => { cur = +im.dataset.i; crop = null; draw(); });
     $('#pt').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { photos.splice(+b.dataset.del, 1); cur = photos.length - 1; crop = null; if (cur < 0) { $('#iw').style.display = 'none'; $('#ocrbar').style.display = 'none'; $('#pt').innerHTML = ''; } else draw(); }); };
-  const add = async files => { for (const f of files) { const bmp = await loadBitmap(f); photos.push({ file: f, bmp, url: URL.createObjectURL(f) }); } cur = photos.length - 1; crop = null; $('#iw').style.display = ''; $('#ocrbar').style.display = ''; draw(); };
-  $('#cam').onchange = e => add(e.target.files); $('#upl').onchange = e => add(e.target.files);
+  const add = async files => {
+    files = [...files]; if (!files.length) return; const msg = $('#ocrmsg'); $('#ocrbar').style.display = '';
+    msg.innerHTML = '<div class="upl pending" data-ocrstatus>Opening photo…</div>';
+    let added = 0;
+    for (const f of files) { try { const bmp = await loadBitmap(f); const prev = toCanvas(bmp, 1400); const url = prev.toDataURL('image/jpeg', 0.8);
+        const file = isHeic(f) ? new File([await canvasBlob(toCanvas(bmp, 4000), 0.92)], (f.name || 'photo').replace(/\.hei[cf]$/i, '') + '.jpg', { type: 'image/jpeg' }) : f;
+        photos.push({ file, bmp, url }); added++; } catch (e) { msg.innerHTML = `<div class="err">Could not open photo: ${esc(e.message)}</div>`; } }
+    if (!added) return; cur = photos.length - 1; crop = null; $('#iw').style.display = ''; draw();
+    readLabel(); // automatic OCR after capture
+  };
+  $('#cam').onchange = e => { add(e.target.files); e.target.value = ''; }; $('#upl').onchange = e => { add(e.target.files); e.target.value = ''; };
   // crop by drag
   let start = null; const pos = e => { const r = cv.getBoundingClientRect(); const b = photos[cur].bmp; return { x: (e.clientX - r.left) / r.width * b.width, y: (e.clientY - r.top) / r.height * b.height }; };
   cv.onpointerdown = e => { if (cur < 0) return; start = pos(e); cv.setPointerCapture(e.pointerId); };
@@ -322,10 +350,11 @@ async function viewReceive(params) {
   cv.onpointerup = () => { start = null; if (crop && (crop.w < 20 || crop.h < 20)) crop = null; draw(); };
   $('#clr').onclick = () => { crop = null; draw(); };
   window.__setCrop = c => { crop = c; draw(); }; // test hook
-  $('#ocr').onclick = async () => {
-    if (cur < 0) return; const msg = $('#ocrmsg'); msg.innerHTML = '<div class="upl pending">Reading label on this device… <span id="pr">0%</span></div>';
+  const readLabel = async () => {
+    if (cur < 0) return; const msg = $('#ocrmsg'); $('#ocr').disabled = true;
+    msg.innerHTML = '<div class="upl pending" data-ocrstatus><span id="prt">Reading label…</span> <b id="pr">0%</b><div style="height:8px;background:#fff;border-radius:4px;margin-top:6px"><div id="prb" style="height:8px;width:0;background:#0b5ed7;border-radius:4px;transition:width .2s"></div></div></div>';
     try {
-      const { lines } = await runOCR(toCanvas(photos[cur].bmp, 3000, crop), p => { const e = $('#pr'); if (e) e.textContent = Math.round(p * 100) + '%'; });
+      const { lines } = await runOCR(toCanvas(photos[cur].bmp, 2000, crop), (p, label) => { const pct = Math.round((p || 0) * 100); const e = $('#pr'); if (e) e.textContent = pct + '%'; const t = $('#prt'); if (t && label) t.textContent = label; const bar = $('#prb'); if (bar) bar.style.width = pct + '%'; });
       const res = parseLabel(lines); window.__lastOCR = { lines, res };
       fm.querySelectorAll('.uncertain').forEach(x => x.classList.remove('uncertain')); fm.querySelectorAll('.ocrnote').forEach(x => x.remove());
       let filled = 0;
@@ -338,8 +367,10 @@ async function viewReceive(params) {
       }
       msg.innerHTML = (res.warnings.map(w => `<div class="warn">${esc(w)}</div>`).join('')) + (filled ? `<div class="upl ok">Filled ${filled} field(s). Yellow = uncertain. Check everything before saving.</div>` : '');
       if (fm.job_number.value) checkDup();
-    } catch (e) { msg.innerHTML = `<div class="err">OCR failed: ${esc(e.message)}. Please enter the details manually.</div>`; }
+    } catch (e) { console.error(e); msg.innerHTML = `<div class="err">Could not read the label: ${esc(e.message)}. Please type the details in manually (photo is still attached), or tap Read label to try again.</div>`; }
+    finally { $('#ocr').disabled = false; }
   };
+  $('#ocr').onclick = readLabel;
   // duplicates
   let dupRec = null;
   const checkDup = async () => {
@@ -391,7 +422,7 @@ async function viewRecord(id, params) {
    <label class="f"><span>Notes</span><textarea id="r_notes" rows="2">${esc(rec.notes)}</textarea></label><button class="btn" id="r_save">Save job details</button>
    <p class="small muted">In overs ${daysSince(rec.received_date)} days · created by ${esc(rec.created_by || '')} ${esc(fmtDT(rec.created_at))}</p></div>
   <div class="card"><h3>Photos (${rec.overs_photos.length})</h3><div class="thumbs" id="ph">${rec.overs_photos.map(p => `<div class="t"><img data-full="${esc(url(p.path))}" src="${esc(url(p.thumb_path || p.path))}" data-photo="${p.id}"></div>`).join('') || '<span class="muted">No photos.</span>'}</div>
-   <div class="row" style="margin-top:8px"><label class="btn primary">📷 Add photos<input id="addph" type="file" accept="image/*" multiple hidden></label><span class="small muted">Tap a photo for full size.</span></div><div id="phq"></div></div>
+   <div class="row" style="margin-top:8px"><label class="btn primary">📷 Add photos<input id="addph" type="file" accept="image/*,.heic,.heif" multiple class="vh"></label><span class="small muted">Tap a photo for full size.</span></div><div id="phq"></div></div>
   <div class="card" id="cont"><h3>Containers: ${esc(containersText(rec))}</h3>
    <table class="h">${rec.overs_containers.map(c => `<tr><td>${c.count} ${esc(c.container_type)}</td><td>${esc(c.added_by || '')}</td><td>${esc(fmtDT(c.added_at))}</td></tr>`).join('')}</table>
    <div style="margin-top:8px">${containerPicker('addcp')}<button class="btn primary" id="addc" style="margin-top:6px">+ Add these containers</button></div></div>
