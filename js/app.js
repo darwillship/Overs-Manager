@@ -1,6 +1,6 @@
-import { SUPABASE_URL, SUPABASE_KEY, APP_URL, DEFAULT_LOGIN_EMAIL, BUCKET } from './config.js?v=8';
-import { computeStatus, approvalFingerprint, STATUS_LABEL, ACTIVE_STATUSES, DATE_ONLY_POLICIES } from './rules.js?v=8';
-import { parseLabel } from './ocrparse.js?v=8';
+import { SUPABASE_URL, SUPABASE_KEY, APP_URL, DEFAULT_LOGIN_EMAIL, BUCKET } from './config.js?v=9';
+import { computeStatus, approvalFingerprint, STATUS_LABEL, ACTIVE_STATUSES, DATE_ONLY_POLICIES } from './rules.js?v=9';
+import { parseLabel } from './ocrparse.js?v=9';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true } });
 window.__sb = sb;
@@ -367,7 +367,7 @@ async function viewReceive(params) {
       }
       msg.innerHTML = (res.warnings.map(w => `<div class="warn">${esc(w)}</div>`).join('')) + (filled ? `<div class="upl ok">Filled ${filled} field(s). Yellow = uncertain. Check everything before saving.</div>` : '');
       if (fm.job_number.value) checkDup();
-    } catch (e) { console.error(e); msg.innerHTML = `<div class="err">Could not read the label: ${esc(e.message)}. Please type the details in manually (photo is still attached), or tap Read label to try again.</div>`; }
+    } catch (e) { console.error(e); msg.innerHTML = `<div class="err">Could not read the label: ${esc((e && e.message) || (typeof e === 'string' && e) || 'the label reader could not load — check the internet connection')}. Please type the details in manually (photo is still attached), or tap Read label to try again.</div>`; }
     finally { $('#ocr').disabled = false; }
   };
   $('#ocr').onclick = readLabel;
