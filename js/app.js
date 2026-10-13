@@ -107,7 +107,7 @@ function viewLogin() {
   app.innerHTML = `<div class="card" style="max-width:420px;margin:40px auto">
   <h2>Darwill Overs Manager</h2><p class="muted">Sign in with the overs team login.</p>
   <label class="f"><span>Email</span><input id="em" type="email" value="${esc(localStorage.getItem('overs_email') || DEFAULT_LOGIN_EMAIL)}"></label>
-  <label class="f"><span>Password</span><input id="pw" type="password" autocomplete="current-password"></label>
+  <label class="f"><span>Password</span></label><div class="row" style="flex-wrap:nowrap"><input id="pw" type="password" autocomplete="current-password" class="grow"><button type="button" class="btn" id="eye" aria-label="Show password" aria-pressed="false">👁 Show</button></div>
   <button class="btn primary big" id="go" style="width:100%">Sign in</button><div id="msg"></div></div>`;
   const go = async () => {
     const { error } = await sb.auth.signInWithPassword({ email: $('#em').value.trim(), password: $('#pw').value });
@@ -116,7 +116,8 @@ function viewLogin() {
     if (!ok.data) { await sb.auth.signOut(); $('#msg').innerHTML = '<div class="err">This account is not on the overs team. Ask Jonathan to add it.</div>'; return; }
     localStorage.setItem('overs_email', $('#em').value.trim()); router();
   };
-  $('#go').onclick = go; $('#pw').onkeydown = e => e.key === 'Enter' && go();
+  $('#go').onclick = go; $('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+  $('#eye').onclick = () => { const pw = $('#pw'); const show = pw.type === 'password'; pw.type = show ? 'text' : 'password'; $('#eye').textContent = show ? '🙈 Hide' : '👁 Show'; $('#eye').setAttribute('aria-pressed', show); pw.focus(); };
 }
 function viewStaff() {
   $('#top').innerHTML = '';
